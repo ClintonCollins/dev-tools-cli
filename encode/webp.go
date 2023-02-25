@@ -7,30 +7,20 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/h2non/filetype/types"
 	"github.com/pterm/pterm"
 	"github.com/rs/zerolog/log"
 
-	"github.com/h2non/filetype"
 	"golang.org/x/sync/errgroup"
-)
 
-type fileType string
-
-const (
-	FileTypeJpeg    fileType = "jpeg"
-	FileTypePng     fileType = "png"
-	FileTypeGif     fileType = "gif"
-	FileTypeUnknown fileType = "unknown"
+	"DevToolsCLI/file"
 )
 
 type WebPHandler struct {
-	InputDirectoryInfo  directoryInfo
-	OutputDirectoryInfo directoryInfo
+	InputDirectoryInfo  file.DirectoryInfo
+	OutputDirectoryInfo file.DirectoryInfo
 	AbsoluteInputPath   string
 	AbsoluteOutputPath  string
 	JpegsEnabled        bool
@@ -38,25 +28,6 @@ type WebPHandler struct {
 	GifsEnabled         bool
 	Lossless            bool
 	Quality             int
-}
-
-type directoryInfo struct {
-	Path                string
-	NumberOfDirectories int64
-	NumberOfFiles       int64
-	SubDirectories      []string
-	TotalSize           int64
-	JpegCount           int64
-	PngCount            int64
-	GifCount            int64
-	KnownFiles          []fileInfo
-	UnknownFiles        []fileInfo
-}
-
-type fileInfo struct {
-	inputPath  string
-	outputPath string
-	fileType   fileType
 }
 
 func WebP(inputDirectory, outputDirectory string, quality int, lossless, jpegs, pngs, gifs bool) error {
@@ -81,12 +52,12 @@ func WebP(inputDirectory, outputDirectory string, quality int, lossless, jpegs, 
 		Quality:            quality,
 	}
 
-	inputDirectoryInfo, err := wpHandler.getDirectoryInfo(absoluteInputPath)
+	inputDirectoryInfo, err := file.GetDirectoryInfoIO(absoluteInputPath, absoluteOutputPath, absoluteInputPath)
 	if err != nil {
 		log.Error().Err(err).Msg("Error getting input directory info")
 		return err
 	}
-	outputDirectoryInfo, err := wpHandler.getDirectoryInfo(absoluteOutputPath)
+	outputDirectoryInfo, err := file.GetDirectoryInfoIO(absoluteOutputPath, absoluteOutputPath, absoluteOutputPath)
 	if err != nil {
 		log.Error().Err(err).Msg("Error getting output directory info")
 		return err
@@ -103,44 +74,9 @@ func WebP(inputDirectory, outputDirectory string, quality int, lossless, jpegs, 
 	return wpHandler.Run()
 }
 
-func getFileTypeFromFilePath(path string) (types.Type, error) {
-	file, errOpen := os.Open(path)
-	if errOpen != nil {
-		log.Error().Err(errOpen).Msg("Error opening file")
-		return types.Unknown, errOpen
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-	fileHeader := make([]byte, 261)
-	_, errRead := file.Read(fileHeader)
-	if errRead != nil {
-		log.Error().Err(errRead).Msg("Error reading file header")
-		return types.Unknown, errRead
-	}
-	fType, errType := filetype.Match(fileHeader)
-	if errType != nil {
-		log.Error().Err(errType).Msg("Error matching file type")
-		return types.Unknown, errType
-	}
-	return fType, nil
-}
-
-func (w *WebPHandler) getTrunkedOutputPath(filePath string, isDir bool) string {
-	if isDir {
-		trimmedDir := strings.TrimPrefix(filePath, w.AbsoluteInputPath)
-		return filepath.Join(w.AbsoluteOutputPath, trimmedDir)
-	}
-	dir := filepath.Dir(filePath)
-	fileName := filepath.Base(filePath)
-	trunkedPath := strings.TrimPrefix(dir, w.AbsoluteInputPath)
-	fileNameNoExtension := trimFileExtension(fileName)
-	return filepath.Join(w.AbsoluteOutputPath, trunkedPath, fileNameNoExtension+".webp")
-}
-
 func (w *WebPHandler) createOutputDirectoriesFromInputSubDirectories() error {
 	for _, subDir := range w.InputDirectoryInfo.SubDirectories {
-		outputSubDir := w.getTrunkedOutputPath(subDir, true)
+		outputSubDir := file.GetTrunkedOutputPath(w.AbsoluteInputPath, w.AbsoluteOutputPath, subDir, true)
 		err := os.MkdirAll(outputSubDir, 755)
 		if err != nil {
 			log.Error().Err(err).Msg("Error creating output sub directory")
@@ -148,61 +84,6 @@ func (w *WebPHandler) createOutputDirectoriesFromInputSubDirectories() error {
 		}
 	}
 	return nil
-}
-
-func (w *WebPHandler) getDirectoryInfo(directory string) (directoryInfo, error) {
-	dInfo := directoryInfo{
-		Path: directory,
-	}
-	err := filepath.Walk(directory, func(path string, f os.FileInfo, err error) error {
-		if f == nil {
-			return nil
-		}
-		if f.IsDir() {
-			dInfo.NumberOfDirectories++
-			dInfo.SubDirectories = append(dInfo.SubDirectories, path)
-			return nil
-		}
-		fInfo := fileInfo{
-			inputPath:  path,
-			outputPath: w.getTrunkedOutputPath(path, false),
-		}
-		fileType, errFileType := getFileTypeFromFilePath(path)
-		if errFileType != nil {
-			log.Error().Err(errFileType).Msg("Error getting file type")
-			return nil
-		}
-		switch fileType.MIME.Value {
-		case "image/jpeg":
-			dInfo.JpegCount++
-			fInfo.fileType = FileTypeJpeg
-			dInfo.KnownFiles = append(dInfo.KnownFiles, fInfo)
-		case "image/gif":
-			dInfo.GifCount++
-			fInfo.fileType = FileTypeGif
-			dInfo.KnownFiles = append(dInfo.KnownFiles, fInfo)
-		case "image/png":
-			dInfo.PngCount++
-			fInfo.fileType = FileTypePng
-			dInfo.KnownFiles = append(dInfo.KnownFiles, fInfo)
-		default:
-			fInfo.fileType = FileTypeUnknown
-			dInfo.UnknownFiles = append(dInfo.UnknownFiles, fInfo)
-		}
-		dInfo.TotalSize += f.Size()
-		dInfo.NumberOfFiles++
-		return nil
-	})
-	return dInfo, err
-}
-
-func trimFileExtension(name string) string {
-	fileNameNoExtension := name
-	extensionLength := len(name) - len(filepath.Ext(name))
-	if extensionLength < len(name) && extensionLength > 0 {
-		fileNameNoExtension = name[:extensionLength]
-	}
-	return fileNameNoExtension
 }
 
 func (w *WebPHandler) Run() error {
@@ -259,25 +140,25 @@ func (w *WebPHandler) Run() error {
 		log.Error().Err(errProgress).Msg("Error creating progress bar")
 		return errProgress
 	}
-	for _, file := range w.InputDirectoryInfo.KnownFiles {
-		file := file
-		if w.JpegsEnabled && file.fileType == FileTypeJpeg {
+	for _, f := range w.InputDirectoryInfo.KnownIOFiles {
+		f := f
+		if w.JpegsEnabled && f.Type == file.TypeJpeg {
 			wg.Go(func() error {
-				errEncode := encodeFile(file.inputPath, file.outputPath, w.Quality, w.Lossless)
+				errEncode := encodeFile(f.InputPath, f.OutputPath, w.Quality, w.Lossless)
 				progressBar.Increment()
 				return errEncode
 			})
 		}
-		if w.PngsEnabled && file.fileType == FileTypePng {
+		if w.PngsEnabled && f.Type == file.TypePng {
 			wg.Go(func() error {
-				errEncode := encodeFile(file.inputPath, file.outputPath, w.Quality, w.Lossless)
+				errEncode := encodeFile(f.InputPath, f.OutputPath, w.Quality, w.Lossless)
 				progressBar.Increment()
 				return errEncode
 			})
 		}
-		if w.GifsEnabled && file.fileType == FileTypeGif {
+		if w.GifsEnabled && f.Type == file.TypeGif {
 			wg.Go(func() error {
-				errEncode := encodeFile(file.inputPath, file.outputPath, w.Quality, w.Lossless)
+				errEncode := encodeFile(f.InputPath, f.OutputPath, w.Quality, w.Lossless)
 				progressBar.Increment()
 				return errEncode
 			})
@@ -289,7 +170,7 @@ func (w *WebPHandler) Run() error {
 		return errWait
 	}
 
-	updatedOutputDirInfo, errOutputDirInfo := w.getDirectoryInfo(w.AbsoluteOutputPath)
+	updatedOutputDirInfo, errOutputDirInfo := file.GetDirectoryInfo(w.AbsoluteOutputPath)
 	if errOutputDirInfo != nil {
 		log.Error().Err(errOutputDirInfo).Msg("Error getting output directory info")
 		return errOutputDirInfo

@@ -7,6 +7,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"DevToolsCLI/edit"
 	"DevToolsCLI/encode"
 	"DevToolsCLI/generate"
 	"DevToolsCLI/logging"
@@ -21,6 +22,28 @@ func handleCLI() {
 	tool := &cli.App{
 		Name: "tools",
 		Commands: []*cli.Command{
+			{
+				Name: "edit",
+				Subcommands: []*cli.Command{
+					{
+						Name: "url_rename",
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:        "target",
+								Required:    true,
+								DefaultText: "the directory you want to rename the files in",
+							},
+							&cli.BoolFlag{
+								Name:     "recursive",
+								Required: false,
+								Usage:    "recursively rename files in subdirectories",
+								Value:    false,
+							},
+						},
+						Action: edit.EscapeRenameFiles,
+					},
+				},
+			},
 			{
 				Name: "generate",
 				Subcommands: []*cli.Command{
