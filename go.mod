@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/dustin/go-humanize v1.0.1
+	github.com/google/uuid v1.3.0
 	github.com/h2non/filetype v1.1.3
 	github.com/pterm/pterm v0.12.54
 	github.com/rs/zerolog v1.29.0
@@ -16,7 +17,6 @@ require (
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	github.com/containerd/console v1.0.3 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/gookit/color v1.5.2 // indirect
 	github.com/lithammer/fuzzysearch v1.1.5 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
