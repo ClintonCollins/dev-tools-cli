@@ -16,6 +16,25 @@ import (
 	"DevToolsCLI/file"
 )
 
+var subCommandRename = &cli.Command{
+	Name:        "rename",
+	Description: "Rename files in a directory. This currently only supports renaming files to be URL safe.",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:        "target",
+			Required:    true,
+			DefaultText: "the directory you want to rename the files in",
+		},
+		&cli.BoolFlag{
+			Name:     "recursive",
+			Required: false,
+			Usage:    "recursively rename files in subdirectories",
+			Value:    false,
+		},
+	},
+	Action: EscapeRenameFiles,
+}
+
 func rename(path string) error {
 	base := filepath.Base(path)
 	dir := filepath.Dir(path)

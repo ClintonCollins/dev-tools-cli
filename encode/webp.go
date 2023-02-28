@@ -12,11 +12,59 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/pterm/pterm"
 	"github.com/rs/zerolog/log"
+	"github.com/urfave/cli/v2"
 
 	"golang.org/x/sync/errgroup"
 
 	"DevToolsCLI/file"
 )
+
+var subCommandWebP = &cli.Command{
+	Name: "webp",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:        "input",
+			Required:    true,
+			DefaultText: "the directory you want to encode the webp files from",
+		},
+		&cli.StringFlag{
+			Name:     "output",
+			Required: true,
+			Usage:    "the directory you want to output the webp files to",
+		},
+		&cli.StringFlag{
+			Name:     "lossless",
+			Required: false,
+			Usage:    "enable lossless encoding",
+		},
+		&cli.IntFlag{
+			Name:     "quality",
+			Required: false,
+			Aliases:  []string{"q"},
+			Usage:    "quality 0-100",
+			Value:    80,
+		},
+		&cli.BoolFlag{
+			Name:     "jpegs",
+			Required: false,
+			Usage:    "encode jpegs",
+			Value:    false,
+		},
+		&cli.BoolFlag{
+			Name:     "pngs",
+			Required: false,
+			Usage:    "encode pngs",
+			Value:    false,
+		},
+		&cli.BoolFlag{
+			Name:     "gifs",
+			Required: false,
+			Usage:    "encode gifs",
+			Value:    false,
+		},
+	},
+	Action: WebP,
+}
 
 type WebPHandler struct {
 	InputDirectoryInfo  file.DirectoryInfo
@@ -30,7 +78,19 @@ type WebPHandler struct {
 	Quality             int
 }
 
-func WebP(inputDirectory, outputDirectory string, quality int, lossless, jpegs, pngs, gifs bool) error {
+func WebP(c *cli.Context) error {
+	inputDirectory := c.String("input")
+	outputDirectory := c.String("output")
+	quality := c.Int("quality")
+	lossless := c.IsSet("lossless")
+	jpegs := c.Bool("jpegs")
+	pngs := c.Bool("pngs")
+	gifs := c.Bool("gifs")
+	if !c.IsSet("jpegs") && !c.IsSet("pngs") && !c.IsSet("gifs") {
+		jpegs = true
+		pngs = true
+		gifs = true
+	}
 	absoluteInputPath, err := filepath.Abs(inputDirectory)
 	if err != nil {
 		log.Error().Err(err).Msg("Error getting absolute path of input directory")
