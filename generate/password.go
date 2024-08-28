@@ -49,14 +49,21 @@ func Password(c *cli.Context) error {
 		return errBinaryRead
 	}
 	length := c.Int("length")
-	enableNumbers := c.IsSet("numbers")
-	enableSymbols := c.IsSet("symbols")
+	enableNumbers := c.Bool("numbers")
+	enableSymbols := c.Bool("symbols")
 	minNumbers := c.Int("minNumbers")
 	minSymbols := c.Int("minSymbols")
 	charSet := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	numberSet := "0123456789"
 	specialSet := "!@#$%^&*()_+"
-	allSet := charSet + numberSet + specialSet
+	allSet := charSet
+	if enableNumbers {
+		allSet += numberSet
+	}
+	if enableSymbols {
+		allSet += specialSet
+	}
+	pterm.Info.Printfln("Length: %d | Numbers enabled: %t | Symbols enabled: %t | Minimum numbers: %d | Minimum symbols: %d", length, enableNumbers, enableSymbols, minNumbers, minSymbols)
 
 	if !c.IsSet("minNumbers") {
 		maxRand := 1
